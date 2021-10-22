@@ -18,7 +18,7 @@ def main():
 
             if len(host_entry['Vulns']) > 0:
                 #print(json.dumps(host_entry['Vulns']))
-                slack.post_message_to_slack(json.dumps(host_entry))
+                slackbot.post_message_to_slack(json.dumps(host_entry))
 
 if __name__ == "__main__":
     main()
