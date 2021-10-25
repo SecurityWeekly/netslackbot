@@ -1,11 +1,8 @@
 import requests
-#
-# Enter your Slack tokens and other parameters for your Slack channel here:
-#
-SLACK_TOKEN = ''
-SLACK_CHANNEL = ''
-SLACK_EMOJI = ''
-SLACK_USERNAME = ''
+import json
+
+# importing `config.py` to access its variables
+import config
 
 #
 # Very simple function to post a message to a Slack channel
@@ -15,11 +12,11 @@ def post_message_to_slack(text, blocks=None):
 
     try:
         post_request_results = requests.post('https://slack.com/api/chat.postMessage', {
-        'token': SLACK_TOKEN,
-        'channel': SLACK_CHANNEL,
+        'token': config.SLACK_TOKEN,
+        'channel': config.SLACK_CHANNEL,
         'text': text,
-        'icon_emoji': SLACK_EMOJI,
-        'username': SLACK_EMOJI,
+        'icon_emoji': config.SLACK_EMOJI,
+        'username': config.SLACK_EMOJI,
         'blocks': json.dumps(blocks) if blocks else None
         }).json()
     except Exception as e:

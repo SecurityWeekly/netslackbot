@@ -8,6 +8,8 @@ from requests.auth import HTTPBasicAuth
 from requests.auth import HTTPDigestAuth
 from paramiko import SSHClient
 
+import config
+
 #
 # Try to login to the web interface using Basic and Digest Auth
 #
@@ -57,13 +59,15 @@ def get_ip_address():
 #
 # Scan the network, then match vendors and test for specific credentials
 #
-def network_scan():
+def network_scan(network_cidr):
     print('Scanning network...')
 
-    # assign interface_ip to get_ip_address return value
-    interface_ip = get_ip_address()
-    # Convert networkIP to 0/24 subnet ip range
-    network_cidr = interface_ip[:interface_ip.rfind('.') + 1] + '0/24'
+    if not network_cidr:
+        # assign interface_ip to get_ip_address return value
+        interface_ip = get_ip_address()
+        # Convert networkIP to 0/24 subnet ip range
+        network_cidr = interface_ip[:interface_ip.rfind('.') + 1] + '0/24'
+
     # tcp ports to scan for found vendor device
     port_list = '21,22,23,80,81,8080'
 
@@ -89,40 +93,47 @@ def network_scan():
                       'Ports': [],
                       'Vulns': []}
 
-        ip = str(nm[host]['addresses'])[10:-30]
+        if 'ipv4' in nm[host]['addresses']:
+            ip = nm[host]['addresses']['ipv4']
+        else:
+            ip = str(nm[host]['addresses'])[10:-30]
+
         host_entry['IP'] = ip
-
         host_entry['Hostname'] = nm[host].hostname()
+        vendor = ''
 
+        # Try to scrape the full vendor name from the MAC association
         if 'mac' in nm[host]['addresses']:
-            vendor = ''
-            # Try to scrape the full vendor name from the MAC association
             vendor = str(nm[host]['vendor'])[23:][:-2]
 
-            # If that doesn't work, pull the vendor from OS fingerprinting
-            if len(vendor) == 0:
-                if 'osmatch' in nm[host]:
-                    for osmatch in nm[host]['osmatch']:
-                        if 'osclass' in osmatch:
-                            for osclass in osmatch['osclass']:
-                                vendor = osclass['vendor']
-                                # Take the first vendor in the list...
-                                break
+        # If that doesn't work, pull the vendor from OS fingerprinting
+        if len(vendor) == 0:
+            if 'osmatch' in nm[host]:
+                for osmatch in nm[host]['osmatch']:
+                    if 'osclass' in osmatch:
+                        for osclass in osmatch['osclass']:
+                            vendor += osclass['vendor']
 
+        if len(vendor) > 0:
             host_entry['Vendor'] = vendor
+        else:
+            host_entry['Vendor'] = 'Not found.'
 
-            # save only open ports
-            for proto in nm[host].all_protocols():
-                ports = nm[host][proto].keys()
-                for port in ports:
-                    port_state = nm[host][proto][port]['state']
-                    # only print result for open ports
-                    if 'open' in port_state:
-                        host_entry['Ports'].append(str(port))
+        # save only open ports
+        for proto in nm[host].all_protocols():
+            ports = nm[host][proto].keys()
+            for port in ports:
+                port_state = nm[host][proto][port]['state']
+                # only print result for open ports
+                if 'open' in port_state:
+                    host_entry['Ports'].append(str(port))
+
+        # Only test for service default creds if we got open ports
+        if len(host_entry['Ports']) > 0:
 
             vendor_list = ['Mobotix AG', 'Hangzhou Hikvision Digital Technology', 'Axis Communications AB',
-                           'Zhejiang Dahua Technology', 'Panasonic Communications Co', 'Eaton', 'Raspberry Pi', 'Cisco Systems']
-
+                           'Zhejiang Dahua Technology', 'Panasonic Communications Co', 'Eaton', 'Raspberry Pi',
+                           'Cisco Systems']
             # Match the vendors with the results and try to login, saving the results to the vulns field
             for vendor_string in vendor_list:
                 if vendor_string in vendor:
@@ -154,7 +165,7 @@ def network_scan():
                         host_entry['Vulns'] = http_request('admin', 'admin', '/set_net.htm', ip)
 
                     elif 'Cisco' in vendor_string:
-                        host_entry['Vulns'] = http_request('admin', 'cisco', '/', ip)
+                        host_entry['Vulns'] = http_request('admin', config.CISCO_PASS, '/', ip)
 
                     elif 'Raspberry Pi' in vendor_string:
                         host_entry['Vulns'] = ssh_login(ip, 22, 'pi', 'raspberry')
@@ -168,8 +179,6 @@ def network_scan():
                         if generic_login_test is not None:
                             host_entry['Vulns'] = generic_login_test
 
-        else:
-            host_entry['Vendor'] = 'No MAC Address'
 
         host_list.append(host_entry)
 

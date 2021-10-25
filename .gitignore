@@ -40,3 +40,5 @@
 ./.localenv
 */.localenv
 .localenv
+hosts.txt
+config.py
