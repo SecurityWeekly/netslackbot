@@ -1,0 +1,85 @@
+#
+# HTTP default passwords go here
+#
+[[http]]
+
+  [[http.vendors]]
+    name = "Cisco Systems"
+    auth_type = "basic"
+    login_url = "/login"
+
+    [[http.vendors.creds]]
+      username = "admin"
+      password = "cisco"
+
+    [[http.vendors.creds]]
+      username = "admin"
+      password = "admin"
+
+  [[http.vendors]]
+    name = "Mobotix AG"
+    login_url = "control/userimage.html"
+
+    [[http.vendors.creds]]
+      username = "admin"
+      password = "meinsm"
+
+  [[http.vendors]]
+    name = "Hangzhou Hikvision Digital Technology"
+    login_url = "/ISAPI/System/status"
+
+    [[http.vendors.creds]]
+      username = "admin"
+      password = "12345"
+
+  [[http.vendors]]
+    name = "Axis Communications AB"
+    login_url = "/axis-cgi/admin/param.cgi?action=list&group=RemoteService"
+
+    [[http.vendors.creds]]
+      username = "root"
+      password = "pass"
+
+  [[http.vendors]]
+    name = 'Zhejiang Dahua Technology'
+    login_url = "/axis-cgi/admin/param.cgi?action=list&group=RemoteService"
+
+    [[http.vendors.creds]]
+      username = "admin"
+      password = "admin"
+
+  [[http.vendors]]
+    name = "Panasonic Communications Co"
+    login_url = '/cgi-bin/main.cgi'
+
+    [[http.vendors.creds]]
+      username = 'dispadmin'
+      password = '@Panasonic'
+
+  [[http.vendors]]
+    name = "Eaton"
+    login_url = "/set_net.htm"
+
+    [[http.vendors.creds]]
+      username = "admin"
+      password = "admin"
+#
+# SSH default creds go here
+#
+[[ssh]]
+
+  [[ssh.vendors]]
+    name = "Ubiquiti"
+    auth_type = "userpass"
+
+    [[ssh.vendors.creds]]
+      username = "ubnt"
+      password = "ubnt"
+
+  [[ssh.vendors]]
+    name = "Ubiquiti"
+    auth_type = "userpass"
+
+    [[ssh.vendors.creds]]
+      username = "pi"
+      password = "raspberry"

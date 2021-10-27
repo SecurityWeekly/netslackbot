@@ -3,12 +3,72 @@ import socket
 import sys
 import requests
 import paramiko
+import toml
+import os
 from paramiko.ssh_exception import AuthenticationException
 from requests.auth import HTTPBasicAuth
 from requests.auth import HTTPDigestAuth
 from paramiko import SSHClient
 
 import config
+
+#
+# Check to see if a file exists on the file system
+#
+def filesyscheck(path):
+    if os.path.exists(path):
+        print("The file: "+path+" exists!")
+        return True
+    else:
+        #print("ERROR: The file: "+path+" does not exist!")
+        return False
+
+
+#
+# Load credentials from configuration file
+#
+def load_creds(config_file, protocol):
+    http_creds = []
+    #
+    # Read config values from the config.toml file
+    # If one was not specified by the user, look for a config.toml file in the same directory
+    #
+    if config_file is not None:
+        try:
+            credsdb = toml.load(config_file)
+            print("Config file: " + config_file)
+        except Exception as e:
+            print("ERROR: Unable to find creds file: " + str(e))
+            raise e
+    else:
+        if filesyscheck("creds.toml"):
+            credsdb = toml.load("creds.toml")
+        else:
+            print("ERROR: Could not find a creds file.")
+            return http_creds
+
+    if protocol is not None:
+        credentials = {
+            'vendor': '',
+            'auth_type': '',
+            'login_url': '',
+            'creds': []
+        }
+
+        if protocol == 'http':
+            for cred in credsdb['http']:
+                for vendor in cred['vendors']:
+                    credentials['vendor'] = vendor['name']
+                    credentials['auth_type'] = vendor['auth_type']
+                    credentials['login_url'] = vendor['login_url']
+                    for userpasses in vendor['creds']:
+                       credentials['creds'].append(userpasses['usernname'])
+                       credentials['creds'].append(userpasses['password'])
+
+                http_creds.append(credentials)
+
+    return http_creds
+
 
 #
 # Try to login to the web interface using Basic and Digest Auth
@@ -61,6 +121,8 @@ def get_ip_address():
 #
 def network_scan(network_cidr):
     print('Scanning network...')
+    #print(load_creds(None, 'http'))
+    #exit(0)
 
     if not network_cidr:
         # assign interface_ip to get_ip_address return value
@@ -133,7 +195,7 @@ def network_scan(network_cidr):
 
             vendor_list = ['Mobotix AG', 'Hangzhou Hikvision Digital Technology', 'Axis Communications AB',
                            'Zhejiang Dahua Technology', 'Panasonic Communications Co', 'Eaton', 'Raspberry Pi',
-                           'Cisco Systems']
+                           'Cisco Systems', 'Ubuquiti']
             # Match the vendors with the results and try to login, saving the results to the vulns field
             for vendor_string in vendor_list:
                 if vendor_string in vendor:
