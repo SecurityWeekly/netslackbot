@@ -4,9 +4,9 @@
 [[http]]
 
   [[http.vendors]]
-    name = "Cisco Systems"
+    name = "Cisco"
     auth_type = "basic"
-    login_url = "/login"
+    login_url = "/"
 
     [[http.vendors.creds]]
       username = "admin"
@@ -83,9 +83,38 @@
       password = "ubnt"
 
   [[ssh.vendors]]
-    name = "Ubiquiti"
+    name = "Raspberry"
     auth_type = "userpass"
 
     [[ssh.vendors.creds]]
       username = "pi"
       password = "raspberry"
+
+#
+# TELNET default creds go here
+#
+[[telnet]]
+
+  [[telnet.vendors]]
+    name = "Ubiquiti"
+    auth_type = "userpass"
+
+    [[telnet.vendors.creds]]
+      username = "ubnt"
+      password = "ubnt"
+
+  [[telnet.vendors]]
+    name = "Netgear"
+    auth_type = "userpass"
+
+    [[telnet.vendors.creds]]
+      username = "admin"
+      password = "password"
+
+  [[telnet.vendors]]
+    name = "Cisco"
+    auth_type = "userpass"
+
+    [[telnet.vendors.creds]]
+      username = "admin"
+      password = "admin"

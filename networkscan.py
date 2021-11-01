@@ -5,6 +5,7 @@ import requests
 import paramiko
 import toml
 import os
+import telnetlib
 from paramiko.ssh_exception import AuthenticationException
 from requests.auth import HTTPBasicAuth
 from requests.auth import HTTPDigestAuth
@@ -17,10 +18,10 @@ import config
 #
 def filesyscheck(path):
     if os.path.exists(path):
-        print("The file: "+path+" exists!")
+        #print("The file: "+path+" exists!")
         return True
     else:
-        #print("ERROR: The file: "+path+" does not exist!")
+        print("ERROR: The file: "+path+" does not exist!")
         return False
 
 
@@ -68,6 +69,16 @@ def load_creds(config_file, protocol):
 
                     creds.append(credentials)
 
+        elif protocol == 'telnet':
+            for cred in credsdb['telnet']:
+                for vendor in cred['vendors']:
+                    credentials = {'vendor': vendor['name'], 'auth_type': vendor['auth_type'],
+                                   'creds': []}
+                    for userpass in vendor['creds']:
+                        credentials['creds'].append({'user': userpass['username'], 'pass': userpass['password']})
+
+                    creds.append(credentials)
+
     return creds
 
 
@@ -84,11 +95,11 @@ def http_request(default_login, default_pw, url_location, ip):
                                     verify=False, timeout=2.0)
 
             if response.ok:
-                return (str(auth_method)[22:][:-2] + ' success')
+                return True
         except requests.exceptions.RequestException as e:
             pass
 
-    return ''
+    return False
 
 
 #
@@ -102,10 +113,37 @@ def ssh_login(target_ip, target_port, ssh_username, ssh_password):
         ssh_client.connect(target_ip, port=target_port, username=ssh_username, password=ssh_password)
     except AuthenticationException as e:
         ssh_client.close()
-        return ''
+        return False
     else:
         ssh_client.close()
-        return 'Successful login to ' + target_ip + 'on port: ' + str(target_port) + ' with: ' + ssh_username + ' : ' + ssh_password
+        return True
+
+
+#
+# Try to login to the TELNET service for a given host
+#
+def telnet_login(target_ip, target_port, telnet_username, telnet_password):
+    timeout = 5
+    t = telnetlib.Telnet(target_ip, port=target_port)  # actively connects to a telnet server
+    t.set_debuglevel(1)                     # uncomment to get debug messages
+    t.read_until(b'Username:', timeout=timeout)  # waits until it recieves a string 'login:'
+    t.write(telnet_username.encode('utf-8'))  # sends username to the server
+    t.write(b'\r')  # sends return character to the server
+    t.read_until(b'Password:', timeout=timeout)  # waits until it recieves a string 'Password:'
+    t.write(telnet_password.encode('utf-8'))  # sends password to the server
+    t.write(b'\r')  # sends return character to the server
+    n, match, previous_text = t.expect([br'Authentication failed', br'\$'], 10)
+    if n == 0:
+        print('TELNET Username and password failed - giving up')
+        t.close()
+        return False
+    else:
+        t.write(b'show ver\r')  # sends a command to the server
+        t.write(b'\r')  # sends a command to the server
+        #print(t.read_all().decode('utf-8'))  # read until socket closes
+        print(t.read_very_eager().decode('utf-8'))  # read until socket closes
+        t.close()
+        return True
 
 
 #
@@ -122,10 +160,9 @@ def get_ip_address():
 #
 def network_scan(network_cidr):
     print('Scanning network...')
-    print(load_creds(None, 'ssh'))
     http_creddb = load_creds(None, 'http')
     ssh_creddb = load_creds(None, 'ssh')
-    #exit(0)
+    telnet_creddb = load_creds(None, 'telnet')
 
     if not network_cidr:
         # assign interface_ip to get_ip_address return value
@@ -134,7 +171,7 @@ def network_scan(network_cidr):
         network_cidr = interface_ip[:interface_ip.rfind('.') + 1] + '0/24'
 
     # tcp ports to scan for found vendor device
-    port_list = '21,22,23,80,81,8080'
+    port_list = '22,23,80,8080'
 
     try:
         nm = nmap.PortScanner()  # instantiate nmap.PortScanner object
@@ -192,67 +229,33 @@ def network_scan(network_cidr):
                 # only print result for open ports
                 if 'open' in port_state:
                     host_entry['Ports'].append(str(port))
-                    print('Port: '+port+' is open on: '+ip)
+                    print('Added open port: '+str(port)+' to host: '+ip)
 
-                    if port == '80' or port == '8080':
-                        print('Port 80 is open on: '+ip)
+                    if port == 80 or port == 8080:
                         for cred_entry in http_creddb:
-                            if vendor in cred_entry['vendor']:
-                                print('Found: ' + vendor)
+                            if cred_entry['vendor'] in vendor:
                                 for userpass in cred_entry['creds']:
-                                    http_request(userpass['user'], userpass['pass'], cred_entry['login_url'], ip)
+                                    print('Trying '+userpass['user'] + " : " +userpass['pass'] + ' at URL: ' + cred_entry['login_url'] + ' for: ' + vendor + ' on port '+str(port))
+                                    http_result = http_request(userpass['user'], userpass['pass'], cred_entry['login_url'], ip)
+                                    if http_result:
+                                        host_entry['Vulns'].append('Port: '+str(port)+' Successful Login')
 
-        # Only test for service default creds if we got open ports
-        if len(host_entry['Ports']) > 0:
-
-            vendor_list = ['Mobotix AG', 'Hangzhou Hikvision Digital Technology', 'Axis Communications AB',
-                           'Zhejiang Dahua Technology', 'Panasonic Communications Co', 'Eaton', 'Raspberry Pi',
-                           'Cisco Systems', 'Ubuquiti']
-            # Match the vendors with the results and try to login, saving the results to the vulns field
-            for vendor_string in vendor_list:
-                if vendor_string in vendor:
-                    # call http_request function if device vendor name contains target vendor
-                    if 'Mobotix AG' in vendor_string:
-                        # Mobotix: Default - admin/meinsm
-                        host_entry['Vulns'] = http_request('admin', 'meinsm', '/control/userimage.html', ip)
-
-                    elif 'Hangzhou Hikvision Digital Technology' in vendor_string:
-                        # Hikvision: Firmware 5.3.0 and up requires unique password creation; previously admin/12345
-                        host_entry['Vulns'] = http_request('admin', '12345', '/ISAPI/System/status', ip)
-
-                    elif 'Axis Communications AB' in vendor_string:
-                        # Axis: Traditionally root/pass, new Axis cameras require password creation during first login
-                        host_entry['Vulns'] = http_request('root', 'pass',
-                                     '/axis-cgi/admin/param.cgi?action=list&group=RemoteService', ip)
-
-                    elif 'Zhejiang Dahua Technology' in vendor_string:
-                        # Dahua: Requires password creation on first login, older models default to admin/admin
-                        host_entry['Vulns'] = http_request('admin', 'admin',
-                                     '/axis-cgi/admin/param.cgi?action=list&group=RemoteService', ip)
-
-                    elif 'Panasonic Communications Co' in vendor_string:
-                        # Panasonic TV default user: dispadmin/@Panasonic
-                        host_entry['Vulns'] = http_request('dispadmin', '@Panasonic', '/cgi-bin/main.cgi', ip)
-
-                    elif 'Eaton' in vendor_string:
-                        # Eaton UPS default user: admin/admin
-                        host_entry['Vulns'] = http_request('admin', 'admin', '/set_net.htm', ip)
-
-                    elif 'Cisco' in vendor_string:
-                        host_entry['Vulns'] = http_request('admin', config.CISCO_PASS, '/', ip)
-
-                    elif 'Raspberry Pi' in vendor_string:
-                        host_entry['Vulns'] = ssh_login(ip, 22, 'pi', 'raspberry')
-
-                    elif 'Ubiquiti' in vendor_string:
-                        host_entry['Vulns'] = ssh_login(ip, 22, 'ubnt', 'ubnt')
-
-                    else:
-                        generic_login_test = None
-                        generic_login_test = http_request('admin', 'admin', '/', ip)
-                        if generic_login_test is not None:
-                            host_entry['Vulns'] = generic_login_test
-
+                    elif port == 22:
+                        for cred_entry in ssh_creddb:
+                            if cred_entry['vendor'] in vendor:
+                                for userpass in cred_entry['creds']:
+                                    print('Trying '+userpass['user'] + " : " +userpass['pass'] + ' for: ' + vendor + ' on port '+str(port))
+                                    ssh_result = ssh_login(ip, port, userpass['user'], userpass['pass'])
+                                    if ssh_result:
+                                        host_entry['Vulns'].append('Port: '+str(port)+' Successful Login')
+                    elif port == 23:
+                        for cred_entry in telnet_creddb:
+                            if cred_entry['vendor'] in vendor:
+                                for userpass in cred_entry['creds']:
+                                    print('Trying '+userpass['user'] + " : " +userpass['pass'] + ' for: ' + vendor + ' on port '+str(port))
+                                    telnet_result = telnet_login(ip, port, userpass['user'], userpass['pass'])
+                                    if telnet_result:
+                                        host_entry['Vulns'].append('Port: '+str(port)+' Successful Login')
 
         host_list.append(host_entry)
 
