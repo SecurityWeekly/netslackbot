@@ -85,12 +85,12 @@ def load_creds(config_file, protocol):
 #
 # Try to login to the web interface using Basic and Digest Auth
 #
-def http_request(default_login, default_pw, url_location, ip):
+def http_request(default_login, default_pw, url_location, ip, port):
     auth_methods = [HTTPBasicAuth, HTTPDigestAuth]
     # try Basic and Digest auth methods, if auth success then print auth_method success
     for auth_method in auth_methods:
         try:
-            response = requests.get(f'http://{ip}{url_location}',
+            response = requests.get(f'http://{ip}:{port}{url_location}',
                                     auth=auth_method(default_login, default_pw),
                                     verify=False, timeout=2.0)
 
@@ -236,7 +236,7 @@ def network_scan(network_cidr):
                             if cred_entry['vendor'] in vendor:
                                 for userpass in cred_entry['creds']:
                                     print('Trying '+userpass['user'] + " : " +userpass['pass'] + ' at URL: ' + cred_entry['login_url'] + ' for: ' + vendor + ' on port '+str(port))
-                                    http_result = http_request(userpass['user'], userpass['pass'], cred_entry['login_url'], ip)
+                                    http_result = http_request(userpass['user'], userpass['pass'], cred_entry['login_url'], ip, port)
                                     if http_result:
                                         host_entry['Vulns'].append('Port: '+str(port)+' Successful Login')
 
