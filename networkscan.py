@@ -28,7 +28,7 @@ def filesyscheck(path):
 # Load credentials from configuration file
 #
 def load_creds(config_file, protocol):
-    http_creds = []
+    creds = []
     #
     # Read config values from the config.toml file
     # If one was not specified by the user, look for a config.toml file in the same directory
@@ -45,29 +45,30 @@ def load_creds(config_file, protocol):
             credsdb = toml.load("creds.toml")
         else:
             print("ERROR: Could not find a creds file.")
-            return http_creds
+            return []
 
     if protocol is not None:
-        credentials = {
-            'vendor': '',
-            'auth_type': '',
-            'login_url': '',
-            'creds': []
-        }
 
         if protocol == 'http':
             for cred in credsdb['http']:
                 for vendor in cred['vendors']:
-                    credentials['vendor'] = vendor['name']
-                    credentials['auth_type'] = vendor['auth_type']
-                    credentials['login_url'] = vendor['login_url']
-                    for userpasses in vendor['creds']:
-                       credentials['creds'].append(userpasses['usernname'])
-                       credentials['creds'].append(userpasses['password'])
+                    credentials = {'vendor': vendor['name'], 'auth_type': vendor['auth_type'],
+                                   'login_url': vendor['login_url'], 'creds': []}
+                    for userpass in vendor['creds']:
+                        credentials['creds'].append({'user': userpass['username'], 'pass': userpass['password']})
 
-                http_creds.append(credentials)
+                    creds.append(credentials)
+        elif protocol == 'ssh':
+            for cred in credsdb['ssh']:
+                for vendor in cred['vendors']:
+                    credentials = {'vendor': vendor['name'], 'auth_type': vendor['auth_type'],
+                                   'creds': []}
+                    for userpass in vendor['creds']:
+                        credentials['creds'].append({'user': userpass['username'], 'pass': userpass['password']})
 
-    return http_creds
+                    creds.append(credentials)
+
+    return creds
 
 
 #
@@ -121,7 +122,9 @@ def get_ip_address():
 #
 def network_scan(network_cidr):
     print('Scanning network...')
-    #print(load_creds(None, 'http'))
+    print(load_creds(None, 'ssh'))
+    http_creddb = load_creds(None, 'http')
+    ssh_creddb = load_creds(None, 'ssh')
     #exit(0)
 
     if not network_cidr:
@@ -189,6 +192,15 @@ def network_scan(network_cidr):
                 # only print result for open ports
                 if 'open' in port_state:
                     host_entry['Ports'].append(str(port))
+                    print('Port: '+port+' is open on: '+ip)
+
+                    if port == '80' or port == '8080':
+                        print('Port 80 is open on: '+ip)
+                        for cred_entry in http_creddb:
+                            if vendor in cred_entry['vendor']:
+                                print('Found: ' + vendor)
+                                for userpass in cred_entry['creds']:
+                                    http_request(userpass['user'], userpass['pass'], cred_entry['login_url'], ip)
 
         # Only test for service default creds if we got open ports
         if len(host_entry['Ports']) > 0:

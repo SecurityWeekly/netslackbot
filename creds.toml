@@ -18,6 +18,7 @@
 
   [[http.vendors]]
     name = "Mobotix AG"
+    auth_type = "basic"
     login_url = "control/userimage.html"
 
     [[http.vendors.creds]]
@@ -26,6 +27,7 @@
 
   [[http.vendors]]
     name = "Hangzhou Hikvision Digital Technology"
+    auth_type = "basic"
     login_url = "/ISAPI/System/status"
 
     [[http.vendors.creds]]
@@ -34,6 +36,7 @@
 
   [[http.vendors]]
     name = "Axis Communications AB"
+    auth_type = "basic"
     login_url = "/axis-cgi/admin/param.cgi?action=list&group=RemoteService"
 
     [[http.vendors.creds]]
@@ -42,6 +45,7 @@
 
   [[http.vendors]]
     name = 'Zhejiang Dahua Technology'
+    auth_type = "basic"
     login_url = "/axis-cgi/admin/param.cgi?action=list&group=RemoteService"
 
     [[http.vendors.creds]]
@@ -50,6 +54,7 @@
 
   [[http.vendors]]
     name = "Panasonic Communications Co"
+    auth_type = "basic"
     login_url = '/cgi-bin/main.cgi'
 
     [[http.vendors.creds]]
@@ -58,6 +63,7 @@
 
   [[http.vendors]]
     name = "Eaton"
+    auth_type = "basic"
     login_url = "/set_net.htm"
 
     [[http.vendors.creds]]
