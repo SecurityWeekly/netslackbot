@@ -13,6 +13,7 @@ from paramiko import SSHClient
 
 import config
 
+
 #
 # Check to see if a file exists on the file system
 #
@@ -35,18 +36,19 @@ def load_creds(config_file, protocol):
     # If one was not specified by the user, look for a config.toml file in the same directory
     #
     if config_file is not None:
-        try:
-            credsdb = toml.load(config_file)
-            print("Config file: " + config_file)
-        except Exception as e:
-            print("ERROR: Unable to find creds file: " + str(e))
-            raise e
+        if filesyscheck(config_file):
+            try:
+                credsdb = toml.load(config_file)
+            except Exception as e:
+                print("ERROR: Unable to read creds config file: " + str(e))
+                raise e
+        else:
+            raise Exception('ERROR: User specified config file not found')
     else:
         if filesyscheck("creds.toml"):
             credsdb = toml.load("creds.toml")
         else:
-            print("ERROR: Could not find a creds file.")
-            return []
+            raise Exception('ERROR: Config file creds.toml could be not found in current directory.')
 
     if protocol is not None:
 
@@ -125,7 +127,7 @@ def ssh_login(target_ip, target_port, ssh_username, ssh_password):
 def telnet_login(target_ip, target_port, telnet_username, telnet_password):
     timeout = 5
     t = telnetlib.Telnet(target_ip, port=target_port)  # actively connects to a telnet server
-    t.set_debuglevel(1)                     # uncomment to get debug messages
+    if config.DEBUG: t.set_debuglevel(1)                     # uncomment to get debug messages
     t.read_until(b'Username:', timeout=timeout)  # waits until it recieves a string 'login:'
     t.write(telnet_username.encode('utf-8'))  # sends username to the server
     t.write(b'\r')  # sends return character to the server
@@ -158,11 +160,7 @@ def get_ip_address():
 #
 # Scan the network, then match vendors and test for specific credentials
 #
-def network_scan(network_cidr):
-    print('Scanning network...')
-    http_creddb = load_creds(None, 'http')
-    ssh_creddb = load_creds(None, 'ssh')
-    telnet_creddb = load_creds(None, 'telnet')
+def network_scan(network_cidr, port_list, config_file):
 
     if not network_cidr:
         # assign interface_ip to get_ip_address return value
@@ -171,7 +169,8 @@ def network_scan(network_cidr):
         network_cidr = interface_ip[:interface_ip.rfind('.') + 1] + '0/24'
 
     # tcp ports to scan for found vendor device
-    port_list = '22,23,80,8080'
+    if port_list is None:
+        port_list = '22,23,80,8080'
 
     try:
         nm = nmap.PortScanner()  # instantiate nmap.PortScanner object
@@ -182,8 +181,27 @@ def network_scan(network_cidr):
         print("Unexpected error:", sys.exc_info()[0])
         sys.exit(1)
 
-    # scan network with specified network_cidr and port_list
-    nm.scan(network_cidr, port_list, arguments='-sS -O -T4', sudo=True)
+    #
+    # Load the credential databases:
+    #
+    try:
+        http_creddb = load_creds(config_file, 'http')
+        ssh_creddb = load_creds(config_file, 'ssh')
+        telnet_creddb = load_creds(config_file, 'telnet')
+    except Exception as e:
+        sys.exit(1)
+
+    print('Scanning network...')
+
+    try:
+        # scan network with specified network_cidr and port_list
+        nm.scan(network_cidr, port_list, arguments='-sV -O -T4', sudo=True)
+    except nmap.PortScannerError:
+        print('Nmap port scan error', sys.exc_info()[0])
+        sys.exit(1)
+    except Exception as e:
+        print("Unexpected error:", sys.exc_info()[0])
+        sys.exit(1)
 
     host_list = []
 
@@ -226,36 +244,38 @@ def network_scan(network_cidr):
             ports = nm[host][proto].keys()
             for port in ports:
                 port_state = nm[host][proto][port]['state']
+                port_service = nm[host][proto][port]['name']
                 # only print result for open ports
                 if 'open' in port_state:
                     host_entry['Ports'].append(str(port))
-                    print('Added open port: '+str(port)+' to host: '+ip)
+                    if config.DEBUG: print('Added open port: '+str(port)+' to host: '+ip)
 
-                    if port == 80 or port == 8080:
+                    if 'http' in port_service:
                         for cred_entry in http_creddb:
                             if cred_entry['vendor'] in vendor:
                                 for userpass in cred_entry['creds']:
-                                    print('Trying '+userpass['user'] + " : " +userpass['pass'] + ' at URL: ' + cred_entry['login_url'] + ' for: ' + vendor + ' on port '+str(port))
+                                    if config.DEBUG: print('Trying '+userpass['user'] + " : " +userpass['pass'] + ' at URL: ' + cred_entry['login_url'] + ' for: ' + vendor + ' on port '+str(port))
                                     http_result = http_request(userpass['user'], userpass['pass'], cred_entry['login_url'], ip, port)
                                     if http_result:
-                                        host_entry['Vulns'].append('Port: '+str(port)+' Successful Login')
+                                        host_entry['Vulns'].append('Port: '+str(port)+' Successful Login using: '+userpass['user']+'/'+userpass['pass'])
 
-                    elif port == 22:
+                    elif 'ssh' in port_service:
                         for cred_entry in ssh_creddb:
                             if cred_entry['vendor'] in vendor:
                                 for userpass in cred_entry['creds']:
-                                    print('Trying '+userpass['user'] + " : " +userpass['pass'] + ' for: ' + vendor + ' on port '+str(port))
+                                    if config.DEBUG: print('Trying '+userpass['user'] + " : " +userpass['pass'] + ' for: ' + vendor + ' on port '+str(port))
                                     ssh_result = ssh_login(ip, port, userpass['user'], userpass['pass'])
                                     if ssh_result:
-                                        host_entry['Vulns'].append('Port: '+str(port)+' Successful Login')
-                    elif port == 23:
+                                        host_entry['Vulns'].append('Port: '+str(port)+' Successful Login using: '+userpass['user']+'/'+userpass['pass'])
+
+                    elif 'telnet' in port_service:
                         for cred_entry in telnet_creddb:
                             if cred_entry['vendor'] in vendor:
                                 for userpass in cred_entry['creds']:
-                                    print('Trying '+userpass['user'] + " : " +userpass['pass'] + ' for: ' + vendor + ' on port '+str(port))
+                                    if config.DEBUG: print('Trying '+userpass['user'] + " : " +userpass['pass'] + ' for: ' + vendor + ' on port '+str(port))
                                     telnet_result = telnet_login(ip, port, userpass['user'], userpass['pass'])
                                     if telnet_result:
-                                        host_entry['Vulns'].append('Port: '+str(port)+' Successful Login')
+                                        host_entry['Vulns'].append('Port: '+str(port)+' Successful Login using: '+userpass['user']+'/'+userpass['pass'])
 
         host_list.append(host_entry)
 

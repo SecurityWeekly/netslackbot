@@ -21,5 +21,6 @@ def post_message_to_slack(text, blocks=None):
         }).json()
     except Exception as e:
         print('Exception error when posting to Slack: '+str(e))
+        raise e
 
     return post_request_results
