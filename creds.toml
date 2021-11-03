@@ -74,6 +74,15 @@
 #
 [[ssh]]
 
+  # Uncomment to scan all hosts listening on SSH for a set of default creds
+  #[[ssh.vendors]]
+  #  name = "Default"
+  #  auth_type = "userpass"
+  #
+  #  [[ssh.vendors.creds]]
+  #    username = "root"
+  #    password = "toor"
+
   [[ssh.vendors]]
     name = "Ubiquiti"
     auth_type = "userpass"
@@ -89,6 +98,14 @@
     [[ssh.vendors.creds]]
       username = "pi"
       password = "raspberry"
+
+  [[ssh.vendors]]
+    name = "Default"
+    auth_type = "userpass"
+
+    [[ssh.vendors.creds]]
+      username = "podcast"
+      password = "podcast"
 
 #
 # TELNET default creds go here

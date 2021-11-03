@@ -76,7 +76,30 @@ Currently SSH, HTTP and TELNET (Cisco only) are supported. You can define new ve
       username = "ubnt"
       password = "ubnt"
 ```
+You can add a vendor with the name "Default" and the script will test all hosts running the service for a set of creds:
+
+```
+[[ssh.vendors]]
+    name = "Default"
+    auth_type = "userpass"
+
+    [[ssh.vendors.creds]]
+      username = "root"
+      password = "toor"
+```
 
 ## Example Output
 
-```{'IP': '192.168.0.25', 'Hostname': '', 'Vendor': 'Cisco Systems', 'Ports': ['22', '23', '80'], 'Vulns': ['Port: 23 Successful Login using: admin/admin', 'Port: 80 Successful Login using: admin/cisco', 'Port: 80 Successful Login using: admin/admin']}```
+```
+{'IP': '192.168.1.1', 'Hostname': 'gw.example.com', 'Vendor': 'Icann, Iana Department', 'Ports': ['22', '80'], 'Vulns': []}
+{'IP': '192.168.1.10', 'Hostname': 'bmhyperdeck.example.com', 'Vendor': 'Blackmagic Design', 'Ports': [], 'Vulns': []}
+{'IP': '192.168.1.13', 'Hostname': 'server1.example.com', 'Vendor': 'Realtek Semiconductor', 'Ports': ['22'], 'Vulns': ['Port: 22 Successful Login using: root/toor']}
+{'IP': '192.168.1.113', 'Hostname': 'whut.example.com', 'Vendor': 'Asustek Computer', 'Ports': [], 'Vulns': []}
+{'IP': '192.168.1.113', 'Hostname': 'mixer.example.com', 'Vendor': 'Audiotonix Group Limited', 'Ports': [], 'Vulns': []}
+{'IP': '192.168.1.123', 'Hostname': '', 'Vendor': 'Blackmagic Design', 'Ports': [], 'Vulns': []}
+{'IP': '192.168.1.13', 'Hostname': 'switch1.example.com', 'Vendor': 'Cisco Systems', 'Ports': ['22', '23', '80'], 'Vulns': ['Port: 80 Successful Login using: admin/cisco']}
+{'IP': '192.168.1.133', 'Hostname': '', 'Vendor': 'Raspberry Pi Trading', 'Ports': ['22'], 'Vulns': []}
+{'IP': '192.168.1.33', 'Hostname': 'lion.example.com', 'Vendor': 'RF-SpaceWIZnetNovellLantronixIEIWalker TechnologiesWIZnet', 'Ports': ['23', '80'], 'Vulns': []}
+{'IP': '192.168.1.43', 'Hostname': 'switch3.example.com', 'Vendor': 'Cisco Systems', 'Ports': ['22', '23', '80'], 'Vulns': ['Port: 23 Successful Login using: admin/admin', 'Port: 80 Successful Login using: admin/cisco']}
+{'IP': '192.168.1.53', 'Hostname': 'ap.example.com', 'Vendor': 'Ubiquiti Networks', 'Ports': ['22'], 'Vulns': []}
+```

@@ -37,6 +37,7 @@ def load_creds(config_file, protocol):
     #
     if config_file is not None:
         if filesyscheck(config_file):
+            if config.DEBUG: print('INFO: Attempting to use user supplied config file: '+config_file)
             try:
                 credsdb = toml.load(config_file)
             except Exception as e:
@@ -46,6 +47,7 @@ def load_creds(config_file, protocol):
             raise Exception('ERROR: User specified config file not found')
     else:
         if filesyscheck("creds.toml"):
+            if config.DEBUG: print('INFO: Attempting to use the default config file')
             credsdb = toml.load("creds.toml")
         else:
             raise Exception('ERROR: Config file creds.toml could be not found in current directory.')
@@ -112,8 +114,18 @@ def ssh_login(target_ip, target_port, ssh_username, ssh_password):
     ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy)
 
     try:
-        ssh_client.connect(target_ip, port=target_port, username=ssh_username, password=ssh_password)
+        ssh_client.connect(target_ip,
+                           port=target_port,
+                           username=ssh_username,
+                           password=ssh_password,
+                           timeout=5,
+                           allow_agent=False) # disable connecting to the SSH agent
     except AuthenticationException as e:
+        if config.DEBUG: print('ERROR: SSH Authentication failed.')
+        ssh_client.close()
+        return False
+    except Exception as oe:
+        if config.DEBUG: print('ERROR: SSH failed: '+str(oe))
         ssh_client.close()
         return False
     else:
@@ -127,7 +139,7 @@ def ssh_login(target_ip, target_port, ssh_username, ssh_password):
 def telnet_login(target_ip, target_port, telnet_username, telnet_password):
     timeout = 5
     t = telnetlib.Telnet(target_ip, port=target_port)  # actively connects to a telnet server
-    if config.DEBUG: t.set_debuglevel(1)                     # uncomment to get debug messages
+    #if config.DEBUG: t.set_debuglevel(1)                     # uncomment to get debug messages
     t.read_until(b'Username:', timeout=timeout)  # waits until it recieves a string 'login:'
     t.write(telnet_username.encode('utf-8'))  # sends username to the server
     t.write(b'\r')  # sends return character to the server
@@ -248,7 +260,7 @@ def network_scan(network_cidr, port_list, config_file):
                 # only print result for open ports
                 if 'open' in port_state:
                     host_entry['Ports'].append(str(port))
-                    if config.DEBUG: print('Added open port: '+str(port)+' to host: '+ip)
+                    if config.DEBUG: print('Added open port: '+str(port)+' to host: '+ip+' running service: '+port_service)
 
                     if 'http' in port_service:
                         for cred_entry in http_creddb:
@@ -264,6 +276,12 @@ def network_scan(network_cidr, port_list, config_file):
                             if cred_entry['vendor'] in vendor:
                                 for userpass in cred_entry['creds']:
                                     if config.DEBUG: print('Trying '+userpass['user'] + " : " +userpass['pass'] + ' for: ' + vendor + ' on port '+str(port))
+                                    ssh_result = ssh_login(ip, port, userpass['user'], userpass['pass'])
+                                    if ssh_result:
+                                        host_entry['Vulns'].append('Port: '+str(port)+' Successful Login using: '+userpass['user']+'/'+userpass['pass'])
+                            elif cred_entry['vendor'] == 'Default':
+                                for userpass in cred_entry['creds']:
+                                    if config.DEBUG: print('DEFAULTS: Trying '+userpass['user'] + " : " +userpass['pass'] + ' for: ' + vendor + ' on port '+str(port))
                                     ssh_result = ssh_login(ip, port, userpass['user'], userpass['pass'])
                                     if ssh_result:
                                         host_entry['Vulns'].append('Port: '+str(port)+' Successful Login using: '+userpass['user']+'/'+userpass['pass'])
